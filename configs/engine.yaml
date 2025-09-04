@@ -1,0 +1,135 @@
+# Backtesting Engine Configuration
+
+# Engine settings
+engine:
+  name: "OptxBacktester"
+  version: "1.0.0"
+  deterministic: true        # Ensure deterministic results
+  enable_checkpointing: false
+  checkpoint_interval: 10000 # Events between checkpoints
+  checkpoint_path: "artifacts/checkpoints"
+  
+# Performance settings  
+performance:
+  enable_metrics: true
+  enable_latency_tracking: true
+  gc_mode: "SERVER"          # Use server GC for better performance
+  thread_pool_size: 4        # Number of worker threads
+  
+# Memory settings
+memory:
+  initial_heap_size: "512MB"
+  max_heap_size: "2GB"
+  enable_pooling: true       # Use object pooling
+  pool_sizes:
+    order_pool: 1000
+    tick_pool: 10000
+    event_pool: 5000
+
+# Serialization
+serialization:
+  codec: "PROTOBUF"          # PROTOBUF or MESSAGEPACK
+  compression: false         # Enable compression for network/storage
+  wire_protocol_version: "1.0"
+
+# Fill model configuration
+fill_model:
+  type: "REALISTIC"          # REALISTIC or AGGRESSIVE
+  parameters:
+    # Limit order fill probability based on queue position
+    queue_ahead_factor: 0.1
+    
+    # Market impact parameters
+    impact_model: "LINEAR"
+    impact_coefficient: 0.0001
+    
+    # Latency simulation
+    fill_latency_mean_us: 500
+    fill_latency_std_us: 200
+    
+    # Partial fill parameters
+    partial_fill_probability: 0.3
+    min_fill_ratio: 0.1
+    
+    # Fees and commissions
+    commission_per_share: 0.005
+    commission_per_contract: 0.65
+    sec_fee_rate: 0.0000278    # SEC fee rate
+    taf_fee_rate: 0.000145     # TAF fee rate
+
+# Risk checks
+risk:
+  enable_pre_trade_risk: true
+  enable_position_limits: true
+  enable_concentration_limits: true
+  
+  # Position limits
+  max_single_position_value: 50000
+  max_sector_concentration: 0.25  # Max 25% in single sector
+  max_correlation_exposure: 0.8   # Max correlation exposure
+  
+  # Greeks limits
+  max_portfolio_delta: 1000
+  max_portfolio_gamma: 500
+  max_portfolio_vega: 2000
+  max_portfolio_theta: -100
+  
+  # Notional limits
+  max_daily_notional: 1000000
+  max_order_size: 10000
+  
+  # Price deviation limits
+  max_price_deviation: 0.10   # 10% from market price
+  
+# Market data
+market_data:
+  tick_size_rules:
+    default: 0.01
+    below_1: 0.0001
+  
+  # Quote staleness detection
+  quote_staleness_threshold_ms: 1000
+  
+  # Order book depth
+  book_depth: 10             # Number of levels to maintain
+  
+# Logging
+logging:
+  level: "INFO"              # DEBUG, INFO, WARN, ERROR
+  enable_structured_logging: true
+  log_performance_metrics: true
+  log_order_flow: false      # Detailed order logging
+  output_path: "logs"
+  max_file_size: "100MB"
+  max_files: 10
+
+# Output and reporting
+output:
+  base_path: "artifacts"
+  formats: ["JSON", "CSV"]   # Output formats
+  compression: false
+  
+  # What to output
+  include_tick_data: false
+  include_order_flow: true
+  include_portfolio_snapshots: true
+  include_performance_metrics: true
+  
+  # Snapshot frequency
+  portfolio_snapshot_interval_ms: 1000
+  
+# Simulation parameters
+simulation:
+  # Time acceleration for backtests
+  time_multiplier: 1.0       # 1.0 = real-time, >1.0 = faster
+  
+  # Holiday calendar
+  holiday_calendar: "NYSE"
+  
+  # Market hours
+  market_open: "09:30"
+  market_close: "16:00"
+  timezone: "America/New_York"
+  
+  # Weekend handling
+  skip_weekends: true

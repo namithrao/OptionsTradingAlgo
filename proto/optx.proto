@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+package optx;
+
+option csharp_namespace = "Optx.Wire.Proto";
+
+// Market Data Messages
+message MarketDataFrame {
+  uint64 sequence = 1;
+  uint64 timestamp_ns = 2;
+  string symbol = 3;
+  int64 price_scaled = 4;  // Price * 10000
+  int32 quantity = 5;
+  MarketDataType type = 6;
+}
+
+enum MarketDataType {
+  TRADE = 0;
+  BID = 1;
+  ASK = 2;
+  QUOTE = 3;
+}
+
+message QuoteUpdate {
+  uint64 timestamp_ns = 1;
+  string symbol = 2;
+  int64 bid_price_scaled = 3;
+  int32 bid_size = 4;
+  int64 ask_price_scaled = 5;
+  int32 ask_size = 6;
+}
+
+// Order Messages
+message NewOrder {
+  string order_id = 1;
+  string symbol = 2;
+  OrderSide side = 3;
+  OrderType type = 4;
+  int32 quantity = 5;
+  int64 price_scaled = 6;  // For limit orders
+  TimeInForce tif = 7;
+  uint64 timestamp_ns = 8;
+}
+
+message OrderAck {
+  string order_id = 1;
+  string exchange_order_id = 2;
+  OrderStatus status = 3;
+  uint64 timestamp_ns = 4;
+  string reason = 5;  // For rejections
+}
+
+message Fill {
+  string order_id = 1;
+  string exchange_order_id = 2;
+  int32 filled_quantity = 3;
+  int64 fill_price_scaled = 4;
+  int32 leaves_quantity = 5;
+  uint64 timestamp_ns = 6;
+  int64 commission_scaled = 7;
+}
+
+message CancelOrder {
+  string order_id = 1;
+  string exchange_order_id = 2;
+  uint64 timestamp_ns = 3;
+}
+
+enum OrderSide {
+  BUY = 0;
+  SELL = 1;
+}
+
+enum OrderType {
+  MARKET = 0;
+  LIMIT = 1;
+}
+
+enum TimeInForce {
+  GTC = 0;  // Good Till Cancel
+  IOC = 1;  // Immediate or Cancel
+  FOK = 2;  // Fill or Kill
+}
+
+enum OrderStatus {
+  PENDING = 0;
+  ACCEPTED = 1;
+  REJECTED = 2;
+  FILLED = 3;
+  PARTIALLY_FILLED = 4;
+  CANCELED = 5;
+}
+
+// Option Chain Data
+message OptionContract {
+  string symbol = 1;
+  string underlying_symbol = 2;
+  double strike = 3;
+  uint64 expiry_timestamp = 4;
+  OptionType option_type = 5;
+  int64 bid_price_scaled = 6;
+  int32 bid_size = 7;
+  int64 ask_price_scaled = 8;
+  int32 ask_size = 9;
+  double implied_volatility = 10;
+  double delta = 11;
+  double gamma = 12;
+  double theta = 13;
+  double vega = 14;
+  double rho = 15;
+}
+
+enum OptionType {
+  CALL = 0;
+  PUT = 1;
+}
+
+// Engine Events
+message MarketEvent {
+  uint64 timestamp_ns = 1;
+  oneof event {
+    MarketDataFrame market_data = 2;
+    QuoteUpdate quote = 3;
+    Fill fill = 4;
+    OrderAck order_ack = 5;
+  }
+}
+
+message PortfolioSnapshot {
+  uint64 timestamp_ns = 1;
+  repeated Position positions = 2;
+  double unrealized_pnl = 3;
+  double realized_pnl = 4;
+  double total_pnl = 5;
+  double net_delta = 6;
+  double net_gamma = 7;
+  double net_theta = 8;
+  double net_vega = 9;
+}
+
+message Position {
+  string symbol = 1;
+  int32 quantity = 2;
+  double avg_price = 3;
+  double market_value = 4;
+  double unrealized_pnl = 5;
+  double delta = 6;
+  double gamma = 7;
+  double theta = 8;
+  double vega = 9;
+}
+
+// Strategy Messages
+message StrategySignal {
+  uint64 timestamp_ns = 1;
+  string strategy_name = 2;
+  SignalType signal_type = 3;
+  repeated NewOrder orders = 4;
+  string reason = 5;
+}
+
+enum SignalType {
+  ENTRY = 0;
+  EXIT = 1;
+  HEDGE = 2;
+  ROLL = 3;
+  REBALANCE = 4;
+}
+
+// Risk Management
+message RiskCheck {
+  string order_id = 1;
+  RiskStatus status = 2;
+  string reason = 3;
+  double risk_metric = 4;
+  double risk_limit = 5;
+}
+
+enum RiskStatus {
+  APPROVED = 0;
+  REJECTED = 1;
+  WARNING = 2;
+}

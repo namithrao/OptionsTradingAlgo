@@ -1,0 +1,79 @@
+# IV vs RV Long Straddle Strategy Configuration
+
+strategy:
+  name: "StraddleIVvsRV"
+  description: "Long ATM straddles when IV < RV with delta hedging"
+  
+  parameters:
+    # Entry criteria
+    iv_rv_threshold: -2.0      # Enter when IV < RV - 2*sigma
+    min_iv: 0.15               # Minimum IV for entry
+    max_iv: 0.50               # Maximum IV for entry
+    
+    # Straddle selection
+    max_moneyness_deviation: 0.05  # Max deviation from ATM
+    min_dte: 14                # Minimum days to expiry
+    max_dte: 60                # Maximum days to expiry
+    
+    # Delta hedging
+    hedge_threshold: 0.10      # Hedge when |delta| > 10%
+    rehedge_frequency: "DAILY" # Rehedge frequency
+    hedge_instrument: "UNDERLYING"
+    
+    # Exit criteria
+    max_hold_days: 30          # Maximum hold period
+    profit_target: 0.25        # Exit at 25% profit
+    stop_loss: 0.50            # Exit at 50% loss
+    iv_expansion_target: 0.05  # Exit when IV expands by 5%
+
+# Realized volatility calculation
+realized_vol:
+  lookback_days: 21          # Days for RV calculation
+  annualization_factor: 252  # Trading days per year
+  method: "CLOSE_TO_CLOSE"   # RV calculation method
+  
+# Risk management
+risk:
+  max_positions: 5           # Maximum concurrent straddles
+  max_portfolio_vega: 500    # Maximum portfolio vega exposure
+  max_portfolio_gamma: 100   # Maximum portfolio gamma exposure
+  max_notional_per_trade: 5000
+  
+# Execution settings
+execution:
+  order_type: "LIMIT"
+  spread_crossing: 0.5       # Cross spread by 50%
+  timeout_seconds: 30
+  
+# Market data
+market_data:
+  symbols: ["SPY", "QQQ", "IWM", "GLD", "TLT"]
+  option_chains: true
+  
+# Backtesting
+backtest:
+  start_date: "2023-01-01"
+  end_date: "2023-12-31"
+  initial_capital: 100000
+  commission_per_contract: 0.65
+  option_multiplier: 100
+  
+# Reporting
+reporting:
+  output_path: "artifacts/straddle_ivrv"
+  generate_plots: true
+  detailed_trades: true
+  metrics:
+    - "total_return"
+    - "sharpe_ratio"
+    - "sortino_ratio"
+    - "max_drawdown"
+    - "calmar_ratio"
+    - "win_rate"
+    - "profit_factor"
+    - "avg_days_in_trade"
+    - "pnl_attribution":
+        - "theta_pnl"
+        - "gamma_pnl" 
+        - "vega_pnl"
+        - "hedge_pnl"

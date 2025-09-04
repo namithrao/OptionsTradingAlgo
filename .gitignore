@@ -1,0 +1,51 @@
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+
+# Visual Studio files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test and artifact directories
+artifacts/
+test-data/
+test-results/
+data/
+
+# Rider
+.idea/
+
+# Visual Studio Code
+.vscode/
+
+# Build generated files
+*.dll
+*.exe
+*.pdb
+*.cache
+
+# NuGet packages
+packages/
+
+# Coverage reports
+coverage/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
