@@ -1,0 +1,6 @@
+@Optx.Web_HostAddress = http://localhost:5144
+
+GET {{Optx.Web_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

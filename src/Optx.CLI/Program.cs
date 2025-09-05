@@ -40,7 +40,10 @@ public class Program
         var daysOption = new Option<int>("--days", () => 5, "Number of days to generate");
         var dtOption = new Option<string>("--dt", () => "1s", "Time step between observations");
         var lambdaOption = new Option<double>("--lambda", () => 0.1, "Jump intensity (jumps per year)");
-        var symbolsOption = new Option<string[]>("--symbols", () => new[] { "SPY" }, "Symbols to generate");
+        var symbolsOption = new Option<string[]>("--symbols", () => new[] { "SPY" }, "Symbols to generate")
+        {
+            AllowMultipleArgumentsPerToken = true
+        };
         var outputOption = new Option<string>("--output", () => "data", "Output directory");
         var seedOption = new Option<int?>("--seed", "Random seed for reproducibility");
 
@@ -556,9 +559,11 @@ public class Program
     {
         var events = new List<Core.Events.MarketEvent>();
         var tickFiles = Directory.GetFiles(dataDir, "*_ticks.bin");
+        var optionFiles = Directory.GetFiles(dataDir, "*_options.json");
         
-        Console.WriteLine($"Loading data from {tickFiles.Length} files...");
+        Console.WriteLine($"Loading data from {tickFiles.Length} tick files and {optionFiles.Length} options files...");
         
+        // Load underlying tick data
         foreach (var tickFile in tickFiles)
         {
             Console.WriteLine($"  Loading {Path.GetFileName(tickFile)}...");
@@ -574,11 +579,34 @@ public class Program
                 }
                 
                 events.AddRange(fileEvents);
-                Console.WriteLine($"    Loaded {fileEvents.Count:N0} ticks");
+                Console.WriteLine($"    Loaded {fileEvents.Count:N0} underlying ticks");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"    Error loading {tickFile}: {ex.Message}");
+            }
+        }
+        
+        // Load options quote data
+        foreach (var optionFile in optionFiles)
+        {
+            Console.WriteLine($"  Loading {Path.GetFileName(optionFile)}...");
+            
+            try
+            {
+                var jsonContent = File.ReadAllText(optionFile);
+                var optionsData = JsonSerializer.Deserialize<OptionsFileData>(jsonContent);
+                
+                if (optionsData?.Contracts != null)
+                {
+                    var optionEvents = GenerateOptionQuoteEvents(optionsData);
+                    events.AddRange(optionEvents);
+                    Console.WriteLine($"    Generated {optionEvents.Count:N0} option quote events");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"    Error loading {optionFile}: {ex.Message}");
             }
         }
         
@@ -587,6 +615,64 @@ public class Program
         
         Console.WriteLine($"Total events loaded: {events.Count:N0}");
         return Task.FromResult(events);
+    }
+
+    private static List<Core.Events.MarketEvent> GenerateOptionQuoteEvents(OptionsFileData optionsData)
+    {
+        var events = new List<Core.Events.MarketEvent>();
+        var baseTimestamp = TimeUtils.GetCurrentNanoseconds();
+        
+        // Generate quote events at 1-second intervals to simulate live options quotes
+        for (int timeOffset = 0; timeOffset < 100; timeOffset += 10) // Every 10 seconds for 100 seconds
+        {
+            var timestamp = baseTimestamp + (ulong)(timeOffset * 1_000_000_000L);
+            
+            foreach (var contract in optionsData.Contracts)
+            {
+                // Add small random variation to quotes to simulate market movement
+                var random = new Random(contract.Symbol.GetHashCode() + timeOffset);
+                var bidVariation = 1.0 + (random.NextDouble() - 0.5) * 0.02; // ±1% variation
+                var askVariation = 1.0 + (random.NextDouble() - 0.5) * 0.02;
+                
+                var quoteUpdate = new QuoteUpdate(
+                    timestamp,
+                    contract.Symbol.AsMemory(),
+                    Math.Max(0.01m, contract.BidPrice * (decimal)bidVariation),
+                    Math.Max(1, contract.BidSize + random.Next(-5, 6)),
+                    Math.Max(0.01m, contract.AskPrice * (decimal)askVariation),
+                    Math.Max(1, contract.AskSize + random.Next(-5, 6))
+                );
+                
+                events.Add(new Core.Events.MarketEvent(quoteUpdate));
+            }
+        }
+        
+        return events;
+    }
+
+    // Data structures for JSON deserialization
+    private class OptionsFileData
+    {
+        public string Symbol { get; set; } = string.Empty;
+        public List<OptionContractData> Contracts { get; set; } = new();
+    }
+
+    private class OptionContractData
+    {
+        public string Symbol { get; set; } = string.Empty;
+        public string UnderlyingSymbol { get; set; } = string.Empty;
+        public decimal Strike { get; set; }
+        public string Expiry { get; set; } = string.Empty;
+        public string OptionType { get; set; } = string.Empty;
+        public decimal BidPrice { get; set; }
+        public int BidSize { get; set; }
+        public decimal AskPrice { get; set; }
+        public int AskSize { get; set; }
+        public double ImpliedVol { get; set; }
+        public double Delta { get; set; }
+        public double Gamma { get; set; }
+        public double Theta { get; set; }
+        public double Vega { get; set; }
     }
 
     private static async Task WriteResults(BacktestResults results, string outputDir)

@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -27,6 +27,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Optx.Tests.Engine", "tests\Optx.Tests.Engine\Optx.Tests.Engine.csproj", "{F2A3B4C5-D6E7-89AB-CDEF-012345678901}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Optx.Tests.Execution", "tests\Optx.Tests.Execution\Optx.Tests.Execution.csproj", "{A3B4C5D6-E7F8-9ABC-DEF0-123456789012}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{8F6713C0-EECD-4375-A9F3-FD46173C390B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Optx.Web", "src\Optx.Web\Optx.Web.csproj", "{99B7C914-DCA1-471D-AFE0-C7327A9EA542}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -86,5 +90,12 @@ Global
 		{A3B4C5D6-E7F8-9ABC-DEF0-123456789012}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A3B4C5D6-E7F8-9ABC-DEF0-123456789012}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A3B4C5D6-E7F8-9ABC-DEF0-123456789012}.Release|Any CPU.Build.0 = Release|Any CPU
+		{99B7C914-DCA1-471D-AFE0-C7327A9EA542}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{99B7C914-DCA1-471D-AFE0-C7327A9EA542}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{99B7C914-DCA1-471D-AFE0-C7327A9EA542}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{99B7C914-DCA1-471D-AFE0-C7327A9EA542}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{99B7C914-DCA1-471D-AFE0-C7327A9EA542} = {8F6713C0-EECD-4375-A9F3-FD46173C390B}
 	EndGlobalSection
 EndGlobal
