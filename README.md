@@ -1,25 +1,17 @@
-# 📈 Optx - Production-Ready Options Trading System
-
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
-[![Tests](https://img.shields.io/badge/tests-27%2F27%20passing-brightgreen.svg)]()
-[![.NET](https://img.shields.io/badge/.NET-9.0-blue.svg)](https://dotnet.microsoft.com/download/dotnet/9.0)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Performance](https://img.shields.io/badge/performance-10M+%20ops%2Fsec-orange.svg)]()
-
 A high-performance, production-ready options trading system built with C#/.NET 9.0 featuring deterministic backtesting, real-time strategy execution, and ultra-low-latency C services. Designed for quantitative researchers, algorithmic traders, and financial institutions.
 
-## 🚀 Key Features
+## Key Features
 
-- **🎯 Ultra-High Performance**: 10M+ Black-Scholes calculations/second, zero-allocation hot paths
-- **⚡ Real-Time Processing**: Sub-microsecond order matching with FIFO price-time priority
-- **🧮 Complete Options Math**: Black-Scholes pricing, Greeks calculation, implied volatility solving
-- **📊 Deterministic Backtesting**: Nanosecond-precision event replay with comprehensive metrics
-- **🔄 Cross-Platform Architecture**: C#/.NET core with optimized C services for critical paths
-- **📈 Professional Strategies**: Covered Call, Delta-Hedged Straddle implementations
-- **💾 Efficient Data Storage**: Custom binary format with high-speed tick data I/O
-- **🛡️ Production-Ready**: Comprehensive error handling, logging, monitoring, and risk controls
+- ** Ultra-High Performance**: 10M+ Black-Scholes calculations/second, zero-allocation hot paths
+- ** Real-Time Processing**: Sub-microsecond order matching with FIFO price-time priority
+- ** Complete Options Math**: Black-Scholes pricing, Greeks calculation, implied volatility solving
+- ** Deterministic Backtesting**: Nanosecond-precision event replay with comprehensive metrics
+- ** Cross-Platform Architecture**: C#/.NET core with optimized C services for critical paths
+- ** Professional Strategies**: Covered Call, Delta-Hedged Straddle implementations
+- ** Efficient Data Storage**: Custom binary format with high-speed tick data I/O
+- ** Production-Ready**: Comprehensive error handling, logging, monitoring, and risk controls
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Quick Start](#quick-start)
 - [Architecture Overview](#architecture-overview)
@@ -31,7 +23,7 @@ A high-performance, production-ready options trading system built with C#/.NET 9
 - [Contributing](#contributing)
 - [License](#license)
 
-## 🏃‍♂️ Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -640,7 +632,7 @@ public void BlackScholes_PriceRange_ShouldBeReasonable(double spot, double strik
 }
 ```
 
-## 🚀 Deployment
+## Deployment
 
 ### Production Deployment
 
@@ -727,7 +719,7 @@ spec:
           claimName: optx-data-pvc
 ```
 
-## 📈 Monitoring and Observability
+## Monitoring and Observability
 
 ### Built-in Metrics
 
@@ -770,54 +762,6 @@ dotnet run --project src/Optx.CLI -- backtest \
     --enable-profiling
 ```
 
-## ❓ FAQ
-
-### Performance Questions
-
-**Q: How fast is the options pricing?**
-A: 10M+ Black-Scholes calculations per second with zero memory allocations on modern hardware.
-
-**Q: Can it handle high-frequency trading?**
-A: Yes, the C services support sub-microsecond latencies suitable for HFT applications.
-
-**Q: How much memory does it use?**
-A: Base memory usage is ~50MB. Data sets scale linearly (approximately 27 bytes per tick).
-
-### Usage Questions
-
-**Q: Can I use this for live trading?**
-A: The system is designed for production use but always test thoroughly. Add proper risk controls and failsafes.
-
-**Q: How do I add new asset classes?**
-A: Extend the core types and implement appropriate pricing models. The system is designed to be extensible.
-
-**Q: Can it handle options chains?**
-A: Yes, the system includes options chain generation and can handle complex multi-leg strategies.
-
-### Technical Questions
-
-**Q: Why C# instead of C++ for the main system?**
-A: C# provides excellent performance with better developer productivity. Critical paths use unsafe code and C services where needed.
-
-**Q: How is determinism achieved?**
-A: All operations use deterministic algorithms, fixed random seeds, and nanosecond-precision timestamps.
-
-**Q: Can I run it on macOS/Linux?**
-A: Yes, it's fully cross-platform. The C services adapt to the underlying OS (epoll/kqueue/IOCP).
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
-### Areas Needing Help
-
-- Additional options strategies (butterflies, condors, etc.)
-- More sophisticated risk management
-- Web-based dashboard
-- Additional data connectors
-- Performance optimizations
-- Documentation improvements
-
 ### Development Setup
 
 ```bash
@@ -834,30 +778,3 @@ dotnet test
 # Submit pull request
 git push origin feature/my-new-feature
 ```
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **Black-Scholes Model**: Fischer Black, Myron Scholes, Robert Merton
-- **Performance Inspiration**: Modern HFT systems and quantitative trading platforms
-- **Open Source Libraries**: .NET ecosystem, Protocol Buffers, xUnit, BenchmarkDotNet
-
-## 📞 Support
-
-- **Documentation**: [Wiki](https://github.com/your-org/optx/wiki)
-- **Issues**: [GitHub Issues](https://github.com/your-org/optx/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-org/optx/discussions)
-- **Email**: support@optx.dev
-
----
-
-<div align="center">
-
-**Built with ❤️ for quantitative traders and financial engineers**
-
-[⭐ Star this repository](https://github.com/your-org/optx/stargazers) if you find it useful!
-
-</div>
