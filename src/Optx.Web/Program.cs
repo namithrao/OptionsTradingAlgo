@@ -32,6 +32,10 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IMarketDataService, PolygonMarketDataService>();
 builder.Services.AddHostedService<MarketDataBroadcastService>();
 
+// Add historical data services
+builder.Services.AddSingleton<IHistoricalDataService, PolygonHistoricalDataService>();
+builder.Services.AddSingleton<IHistoricalDataCache, HistoricalDataCache>();
+
 // Add options calculation services
 builder.Services.AddSingleton<IOptionsCalculationService, OptionsCalculationService>();
 

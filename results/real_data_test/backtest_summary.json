@@ -1,0 +1,91 @@
+{
+  "StartTimestamp": 1725336000000000000,
+  "EndTimestamp": 1726200000000000000,
+  "EventsProcessed": 9,
+  "FinalPortfolioState": {
+    "TimestampNs": 1726200000000000000,
+    "Positions": [],
+    "UnrealizedPnL": 0,
+    "RealizedPnL": 0,
+    "NetGreeks": {
+      "Delta": 0,
+      "Gamma": 0,
+      "Theta": 0,
+      "Vega": 0,
+      "Rho": 0
+    }
+  },
+  "PerformanceMetrics": {
+    "BacktestDuration": "00:00:00",
+    "TotalEvents": 9,
+    "TotalFills": 0,
+    "TotalOrders": 0,
+    "EventsPerSecond": 0,
+    "EventLatencies": {
+      "MarketData": {
+        "Count": 9,
+        "Mean": 740.2222222222222,
+        "Min": 0,
+        "Max": 6604,
+        "P50": 10,
+        "P90": 100,
+        "P99": 100,
+        "P999": 100
+      },
+      "Quote": {
+        "Count": 0,
+        "Mean": 0,
+        "Min": 0,
+        "Max": 0,
+        "P50": 0,
+        "P90": 0,
+        "P99": 0,
+        "P999": 0
+      },
+      "Fill": {
+        "Count": 0,
+        "Mean": 0,
+        "Min": 0,
+        "Max": 0,
+        "P50": 0,
+        "P90": 0,
+        "P99": 0,
+        "P999": 0
+      },
+      "OrderAck": {
+        "Count": 0,
+        "Mean": 0,
+        "Min": 0,
+        "Max": 0,
+        "P50": 0,
+        "P90": 0,
+        "P99": 0,
+        "P999": 0
+      }
+    },
+    "OrderProcessingLatency": {
+      "Count": 0,
+      "Mean": 0,
+      "Min": 0,
+      "Max": 0,
+      "P50": 0,
+      "P90": 0,
+      "P99": 0,
+      "P999": 0
+    },
+    "FillCounts": {},
+    "OrderStatusCounts": {
+      "Accepted": 1
+    }
+  },
+  "StrategyState": {
+    "LastAck_BUY_SPY_1725336000000000000_1046": 1,
+    "PositionCount": 1,
+    "ActiveCalls": 0,
+    "ConfigMinDelta": 0.25,
+    "ConfigMaxDelta": 0.35
+  },
+  "Duration": "00:00:00",
+  "TotalReturn": 0,
+  "EventsPerSecond": "Infinity"
+}

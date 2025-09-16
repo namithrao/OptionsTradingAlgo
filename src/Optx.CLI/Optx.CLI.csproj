@@ -32,11 +32,12 @@
     <ProjectReference Include="..\Optx.Data\Optx.Data.csproj" />
     <ProjectReference Include="..\Optx.Engine\Optx.Engine.csproj" />
     <ProjectReference Include="..\Optx.Strategies\Optx.Strategies.csproj" />
+    <ProjectReference Include="..\Optx.Web\Optx.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
-    <PackageReference Include="YamlDotNet" Version="13.7.1" />
+    <PackageReference Include="YamlDotNet" Version="16.0.0" />
   </ItemGroup>
 
 </Project>

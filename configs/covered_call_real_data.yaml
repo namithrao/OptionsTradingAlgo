@@ -1,0 +1,30 @@
+# Configuration for covered call strategy using real historical data
+strategy:
+  name: "CoveredCall"
+  parameters:
+    minDelta: 0.15              # Minimum option delta
+    maxDelta: 0.30              # Maximum option delta  
+    targetDaysToExpiry: 30      # Target days to expiration
+    rollAtDaysToExpiry: 7       # Roll when this many days left
+    rollAtPnLPercent: 50        # Roll when 50% profit achieved
+    lotSize: 100                # Position size (shares)
+    maxPositions: 5             # Maximum concurrent positions (reduced for real data testing)
+    symbols: ["SPY"]            # Focus on SPY for initial real data testing
+
+risk:
+  maxOrderSize: 10000           # Maximum order size ($)
+  maxPositionValue: 25000       # Maximum position value ($) - reduced for testing
+  maxPortfolioDelta: 50         # Maximum portfolio delta exposure
+
+backtest:
+  initialCash: 50000            # Starting capital - reduced for testing
+  commission: 0.65              # Commission per contract
+  slippage: 0.02               # Increased slippage for real market conditions
+  enableProgressReporting: true # Show progress during backtest
+
+# Real data specific settings
+data:
+  useRealData: true             # Flag to indicate using real historical data
+  dataSource: "polygon"         # Data source identifier
+  timeframe: "daily"            # Data timeframe
+  priority: "real"              # Prioritize real data over synthetic when both exist

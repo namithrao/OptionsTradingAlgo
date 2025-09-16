@@ -2,10 +2,13 @@ using System.CommandLine;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using YamlDotNet.Serialization;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Optx.Core.Types;
 using Optx.Core.Utils;
 using Optx.Core.Interfaces;
 using Optx.Core.Events;
+using Optx.Web.Models;
 using Optx.Data.Generators;
 using Optx.Data.Storage;
 using Optx.Engine;
@@ -26,7 +29,9 @@ public class Program
             CreateGenSynthCommand(),
             CreateBacktestCommand(),
             CreateReplayCommand(),
-            CreateBenchCommand()
+            CreateBenchCommand(),
+            CreateDownloadStockCommand(),
+            CreateDownloadOptionsCommand()
         };
 
         return await rootCommand.InvokeAsync(args);
@@ -447,8 +452,8 @@ public class Program
             
             return new BacktestConfig
             {
-                InitialCash = yamlConfig?.Backtest?.InitialCapital ?? 100000m,
-                EnableProgressReporting = true
+                InitialCash = yamlConfig?.Backtest?.InitialCash ?? yamlConfig?.Backtest?.InitialCapital ?? 100000m,
+                EnableProgressReporting = yamlConfig?.Backtest?.EnableProgressReporting ?? true
             };
         }
         catch (Exception ex)
@@ -485,6 +490,8 @@ public class Program
         public decimal? MaxPortfolioDelta { get; set; }
         public decimal? MaxSinglePosition { get; set; }
         public decimal? MaxDailyLoss { get; set; }
+        public decimal? MaxOrderSize { get; set; }
+        public decimal? MaxPositionValue { get; set; }
     }
 
     private class ExecutionConfig
@@ -505,7 +512,11 @@ public class Program
         public string? StartDate { get; set; }
         public string? EndDate { get; set; }
         public decimal? InitialCapital { get; set; }
+        public decimal? InitialCash { get; set; }
         public decimal? CommissionPerContract { get; set; }
+        public decimal? Commission { get; set; }
+        public decimal? Slippage { get; set; }
+        public bool? EnableProgressReporting { get; set; }
     }
 
     private class ReportingConfig
@@ -558,12 +569,23 @@ public class Program
     private static Task<List<Core.Events.MarketEvent>> LoadMarketDataFromFiles(string dataDir)
     {
         var events = new List<Core.Events.MarketEvent>();
-        var tickFiles = Directory.GetFiles(dataDir, "*_ticks.bin");
-        var optionFiles = Directory.GetFiles(dataDir, "*_options.json");
+        
+        // Load historical data files (search in subdirectories too)
+        var tickFiles = Directory.GetFiles(dataDir, "*_ticks*.bin", SearchOption.AllDirectories);
+        var optionFiles = Directory.GetFiles(dataDir, "*_options*.json", SearchOption.AllDirectories);
         
         Console.WriteLine($"Loading data from {tickFiles.Length} tick files and {optionFiles.Length} options files...");
         
-        // Load underlying tick data
+        if (tickFiles.Any(f => f.Contains("_real")) || optionFiles.Any(f => f.Contains("_real")))
+        {
+            Console.WriteLine("  Found real historical data from Polygon API");
+        }
+        else
+        {
+            Console.WriteLine("  Found synthetic data");
+        }
+        
+        // Load underlying tick data (stocks)
         foreach (var tickFile in tickFiles)
         {
             Console.WriteLine($"  Loading {Path.GetFileName(tickFile)}...");
@@ -579,7 +601,9 @@ public class Program
                 }
                 
                 events.AddRange(fileEvents);
-                Console.WriteLine($"    Loaded {fileEvents.Count:N0} underlying ticks");
+                
+                var dataType = tickFile.Contains("_real") ? "real" : "synthetic";
+                Console.WriteLine($"    Loaded {fileEvents.Count:N0} {dataType} underlying ticks");
             }
             catch (Exception ex)
             {
@@ -587,7 +611,7 @@ public class Program
             }
         }
         
-        // Load options quote data
+        // Load options data (both synthetic and real formats)
         foreach (var optionFile in optionFiles)
         {
             Console.WriteLine($"  Loading {Path.GetFileName(optionFile)}...");
@@ -595,13 +619,30 @@ public class Program
             try
             {
                 var jsonContent = File.ReadAllText(optionFile);
-                var optionsData = JsonSerializer.Deserialize<OptionsFileData>(jsonContent);
                 
-                if (optionsData?.Contracts != null)
+                if (optionFile.Contains("_real"))
                 {
-                    var optionEvents = GenerateOptionQuoteEvents(optionsData);
-                    events.AddRange(optionEvents);
-                    Console.WriteLine($"    Generated {optionEvents.Count:N0} option quote events");
+                    // Handle real options data format from Polygon
+                    var realOptionsData = JsonSerializer.Deserialize<List<RealOptionsData>>(jsonContent);
+                    
+                    if (realOptionsData != null)
+                    {
+                        var optionEvents = GenerateOptionEventsFromRealData(realOptionsData);
+                        events.AddRange(optionEvents);
+                        Console.WriteLine($"    Loaded {optionEvents.Count:N0} real option events");
+                    }
+                }
+                else
+                {
+                    // Handle synthetic options data format
+                    var optionsData = JsonSerializer.Deserialize<OptionsFileData>(jsonContent);
+                    
+                    if (optionsData?.Contracts != null)
+                    {
+                        var optionEvents = GenerateOptionQuoteEvents(optionsData);
+                        events.AddRange(optionEvents);
+                        Console.WriteLine($"    Generated {optionEvents.Count:N0} synthetic option quote events");
+                    }
                 }
             }
             catch (Exception ex)
@@ -722,11 +763,507 @@ public class Program
         return new BenchmarkResult { EventsPerSecond = events }; // Placeholder
     }
 
+    /// <summary>
+    /// Download historical stock data command
+    /// </summary>
+    private static Command CreateDownloadStockCommand()
+    {
+        var symbolsOption = new Option<string[]>("--symbols", () => new[] { "SPY" }, "Stock symbols to download")
+        {
+            AllowMultipleArgumentsPerToken = true
+        };
+        var fromOption = new Option<DateTime>("--from", "Start date (YYYY-MM-DD)");
+        var toOption = new Option<DateTime>("--to", "End date (YYYY-MM-DD)");
+        var timespanOption = new Option<string>("--timespan", () => "day", "Timespan (minute, hour, day)");
+        var outputOption = new Option<string>("--output", () => "data/real", "Output directory");
+        var apiKeyOption = new Option<string>("--api-key", "Polygon API key (or set in config)");
+
+        var command = new Command("download-stock", "Download historical stock data from Polygon API")
+        {
+            symbolsOption,
+            fromOption,
+            toOption,
+            timespanOption,
+            outputOption,
+            apiKeyOption
+        };
+
+        command.SetHandler(async (symbols, from, to, timespan, output, apiKey) =>
+        {
+            await DownloadHistoricalStockData(symbols, from, to, timespan, output, apiKey);
+        }, symbolsOption, fromOption, toOption, timespanOption, outputOption, apiKeyOption);
+
+        return command;
+    }
+
+    /// <summary>
+    /// Download historical options data command
+    /// </summary>
+    private static Command CreateDownloadOptionsCommand()
+    {
+        var underlyingOption = new Option<string>("--underlying", () => "SPY", "Underlying stock symbol");
+        var fromOption = new Option<DateTime>("--from", "Start date (YYYY-MM-DD)");
+        var toOption = new Option<DateTime>("--to", "End date (YYYY-MM-DD)");
+        var expirationOption = new Option<DateTime?>("--expiration", "Specific expiration date to download");
+        var strikesOption = new Option<string>("--strikes", "Specific strikes like 520,525,530");
+        var contractTypeOption = new Option<string>("--type", () => "both", "Contract type (call, put, both)");
+        var outputOption = new Option<string>("--output", () => "data/real", "Output directory");
+        var apiKeyOption = new Option<string>("--api-key", "Polygon API key (or set in config)");
+
+        var command = new Command("download-options", "Download historical options data from Polygon API")
+        {
+            underlyingOption,
+            fromOption,
+            toOption,
+            expirationOption,
+            strikesOption,
+            contractTypeOption,
+            outputOption,
+            apiKeyOption
+        };
+
+        command.SetHandler(async (underlying, from, to, expiration, strikes, contractType, output, apiKey) =>
+        {
+            await DownloadHistoricalOptionsData(underlying, from, to, expiration, strikes, contractType, output, apiKey);
+        }, underlyingOption, fromOption, toOption, expirationOption, strikesOption, contractTypeOption, outputOption, apiKeyOption);
+
+        return command;
+    }
+
+    /// <summary>
+    /// Download historical stock data implementation
+    /// </summary>
+    private static async Task DownloadHistoricalStockData(
+        string[] symbols,
+        DateTime from,
+        DateTime to,
+        string timespan,
+        string output,
+        string? apiKey)
+    {
+        Console.WriteLine($"Downloading historical stock data:");
+        Console.WriteLine($"  Symbols: {string.Join(", ", symbols)}");
+        Console.WriteLine($"  From: {from:yyyy-MM-dd}");
+        Console.WriteLine($"  To: {to:yyyy-MM-dd}");
+        Console.WriteLine($"  Timespan: {timespan}");
+        Console.WriteLine($"  Output: {output}");
+
+        Directory.CreateDirectory(output);
+
+        foreach (var symbol in symbols)
+        {
+            Console.WriteLine($"\nDownloading data for {symbol}...");
+            
+            try
+            {
+                // Note: This would normally use dependency injection
+                // For CLI, we'll create a simplified version that reads from config
+                var ticks = await DownloadStockDataForSymbol(symbol, from, to, timespan, apiKey);
+                
+                if (ticks.Count == 0)
+                {
+                    Console.WriteLine($"No data retrieved for {symbol}");
+                    continue;
+                }
+
+                // Write to binary format compatible with existing backtest engine
+                var tickFile = Path.Combine(output, $"{symbol}_ticks_real.bin");
+                using var tickWriter = new TickWriter(tickFile);
+                tickWriter.WriteHeader("1.0", $"Real historical data for {symbol} from Polygon");
+                
+                foreach (var tick in ticks)
+                {
+                    tickWriter.WriteTick(tick);
+                }
+
+                await tickWriter.FlushAsync();
+                
+                // Also save as JSON for easy inspection
+                var jsonFile = Path.Combine(output, $"{symbol}_stock_real.json");
+                var stockData = ticks.Select(t => new {
+                    Timestamp = DateTimeOffset.FromUnixTimeMilliseconds((long)(t.TimestampNs / 1_000_000)).ToString("yyyy-MM-dd HH:mm:ss"),
+                    Price = t.Price,
+                    Quantity = t.Quantity
+                }).ToList();
+                
+                var jsonContent = System.Text.Json.JsonSerializer.Serialize(stockData, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(jsonFile, jsonContent);
+                
+                Console.WriteLine($"Downloaded {ticks.Count:N0} data points for {symbol} -> {tickFile} & {jsonFile}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error downloading data for {symbol}: {ex.Message}");
+            }
+        }
+
+        Console.WriteLine($"\nDownload complete. Data saved to: {output}");
+    }
+
+    /// <summary>
+    /// Download historical options data implementation
+    /// </summary>
+    private static async Task DownloadHistoricalOptionsData(
+        string underlying,
+        DateTime from,
+        DateTime to,
+        DateTime? expiration,
+        string strikes,
+        string contractType,
+        string output,
+        string? apiKey)
+    {
+        Console.WriteLine($"Downloading historical options data:");
+        Console.WriteLine($"  Underlying: {underlying}");
+        Console.WriteLine($"  From: {from:yyyy-MM-dd}");
+        Console.WriteLine($"  To: {to:yyyy-MM-dd}");
+        Console.WriteLine($"  Expiration: {expiration?.ToString("yyyy-MM-dd") ?? "All"}");
+        Console.WriteLine($"  Strikes: {strikes}");
+        Console.WriteLine($"  Type: {contractType}");
+        Console.WriteLine($"  Output: {output}");
+
+        Directory.CreateDirectory(output);
+
+        try
+        {
+            // For historical data, first try without expiration filter to see what's available
+            // Note: Polygon's free tier has very limited historical options data
+            Console.WriteLine($"  Checking available options contracts...");
+            
+            // First, get the options contracts available for the underlying
+            var contracts = await DownloadOptionsContracts(underlying, null, contractType, apiKey, from);
+            
+            if (contracts.Count == 0)
+            {
+                Console.WriteLine($"No options contracts found for {underlying}");
+                return;
+            }
+
+            Console.WriteLine($"Found {contracts.Count} options contracts");
+            
+            // Debug: Show first few contracts to understand what we're getting
+            if (contracts.Count > 0)
+            {
+                Console.WriteLine($"  Sample contracts:");
+                foreach (var contract in contracts.Take(3))
+                {
+                    Console.WriteLine($"    {contract.Ticker} - Strike: {contract.StrikePrice}, Exp: {contract.ExpirationDate}");
+                }
+            }
+            
+            // Filter contracts based on strike criteria
+            var filteredContracts = FilterOptionsByStrikes(contracts, strikes);
+            
+            Console.WriteLine($"After filtering by strikes, {filteredContracts.Count} contracts remain");
+
+            var allOptionsData = new List<RealOptionsData>();
+
+            foreach (var contract in filteredContracts.Take(3)) // Limit to 3 contracts to respect 5 API calls/minute
+            {
+                Console.WriteLine($"Downloading data for {contract.Ticker}...");
+                
+                // Download historical data for this specific options contract
+                var optionTicks = await DownloadOptionsDataForContract(contract.Ticker, from, to, apiKey);
+                
+                if (optionTicks.Count > 0)
+                {
+                    allOptionsData.Add(new RealOptionsData { Contract = contract, Ticks = optionTicks });
+                    Console.WriteLine($"  Retrieved {optionTicks.Count} data points");
+                }
+                else
+                {
+                    Console.WriteLine($"  No data available");
+                }
+            }
+
+            // Save options data in JSON format for now (can be enhanced to binary)
+            var optionsFile = Path.Combine(output, $"{underlying}_options_real.json");
+            var json = System.Text.Json.JsonSerializer.Serialize(allOptionsData, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(optionsFile, json);
+            
+            Console.WriteLine($"\nOptions data saved to: {optionsFile}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error downloading options data: {ex.Message}");
+        }
+    }
+
+    // Real API implementations using PolygonHistoricalDataService
+    private static async Task<List<MarketTick>> DownloadStockDataForSymbol(string symbol, DateTime from, DateTime to, string timespan, string? apiKey)
+    {
+        try
+        {
+            // Create HTTP client and configuration for the API service
+            using var httpClient = new HttpClient();
+            var configuration = CreateConfiguration(apiKey);
+            var logger = CreateLogger<Optx.Web.Services.PolygonHistoricalDataService>();
+            
+            var service = new Optx.Web.Services.PolygonHistoricalDataService(logger, configuration, httpClient);
+            
+            var request = new Optx.Web.Models.HistoricalDataRequest
+            {
+                Symbol = symbol,
+                FromDate = from,
+                ToDate = to,
+                Timespan = timespan,
+                Multiplier = 1,
+                Adjusted = true,
+                Limit = 50000
+            };
+            
+            Console.WriteLine($"  Making API call for {symbol}...");
+            var ticks = await service.GetHistoricalStockDataAsync(request);
+            
+            return ticks;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  Error downloading data for {symbol}: {ex.Message}");
+            return new List<MarketTick>();
+        }
+    }
+
+    private static async Task<List<Optx.Web.Models.PolygonOptionsContract>> DownloadOptionsContracts(string underlying, DateTime? expiration, string contractType, string? apiKey, DateTime? asOfDate = null)
+    {
+        try
+        {
+            using var httpClient = new HttpClient();
+            var configuration = CreateConfiguration(apiKey);
+            var logger = CreateLogger<Optx.Web.Services.PolygonHistoricalDataService>();
+            
+            var service = new Optx.Web.Services.PolygonHistoricalDataService(logger, configuration, httpClient);
+            
+            var request = new Optx.Web.Models.OptionsContractsRequest
+            {
+                UnderlyingTicker = underlying,
+                ExpirationDate = expiration,
+                ContractType = contractType != "both" ? contractType : null,
+                Limit = 1000,
+                // For historical data: get contracts that were active during the historical period
+                AsOf = asOfDate, // Use the historical date
+                Expired = false // Get contracts that were active (not already expired) on the as_of date
+            };
+            
+            Console.WriteLine($"  Getting options contracts for {underlying}...");
+            if (asOfDate.HasValue)
+            {
+                Console.WriteLine($"  Using as_of date: {asOfDate.Value:yyyy-MM-dd} (expired={request.Expired})");
+            }
+            var contracts = await service.GetOptionsContractsAsync(request);
+            
+            return contracts;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  Error getting options contracts for {underlying}: {ex.Message}");
+            return new List<Optx.Web.Models.PolygonOptionsContract>();
+        }
+    }
+
+    private static DateTime CalculateHistoricalExpiration(DateTime from, DateTime to)
+    {
+        // For historical data, we want contracts that would have been available during the time period
+        // Look for contracts expiring 1-3 months after the data period
+        var dataEndDate = to;
+        
+        // Add 1-2 months to find realistic expiration dates
+        var expirationTarget = dataEndDate.AddMonths(2);
+        
+        // Find the third Friday of that month (standard options expiration)
+        var year = expirationTarget.Year;
+        var month = expirationTarget.Month;
+        var firstDayOfMonth = new DateTime(year, month, 1);
+        
+        // Find first Friday
+        var firstFriday = firstDayOfMonth.AddDays((5 - (int)firstDayOfMonth.DayOfWeek + 7) % 7);
+        
+        // Third Friday is 2 weeks later
+        var thirdFriday = firstFriday.AddDays(14);
+        
+        Console.WriteLine($"  Using expiration date: {thirdFriday:yyyy-MM-dd} (calculated from data period {from:yyyy-MM-dd} to {to:yyyy-MM-dd})");
+        
+        return thirdFriday;
+    }
+
+    private static List<Optx.Web.Models.PolygonOptionsContract> FilterOptionsByStrikes(List<Optx.Web.Models.PolygonOptionsContract> contracts, string strikes)
+    {
+        if (string.IsNullOrEmpty(strikes))
+        {
+            return contracts.Take(5).ToList(); // Default: limit to 5 contracts for rate limits
+        }
+        
+        // Parse specific strikes like "520,525,530"
+        var targetStrikes = strikes.Split(',')
+            .Select(s => decimal.TryParse(s.Trim(), out var strike) ? strike : (decimal?)null)
+            .Where(s => s.HasValue)
+            .Select(s => s!.Value)
+            .ToHashSet();
+        
+        if (targetStrikes.Count == 0)
+        {
+            return contracts.Take(5).ToList(); // Fallback: limit to 5 contracts
+        }
+            
+        return contracts.Where(c => targetStrikes.Contains(c.StrikePrice)).ToList();
+    }
+
+    private static async Task<List<MarketTick>> DownloadOptionsDataForContract(string contractTicker, DateTime from, DateTime to, string? apiKey)
+    {
+        try
+        {
+            using var httpClient = new HttpClient();
+            var configuration = CreateConfiguration(apiKey);
+            var logger = CreateLogger<Optx.Web.Services.PolygonHistoricalDataService>();
+            
+            var service = new Optx.Web.Services.PolygonHistoricalDataService(logger, configuration, httpClient);
+            
+            var request = new Optx.Web.Models.HistoricalDataRequest
+            {
+                Symbol = contractTicker,
+                FromDate = from,
+                ToDate = to,
+                Timespan = "day",
+                Multiplier = 1,
+                Adjusted = true,
+                Limit = 5000
+            };
+            
+            Console.WriteLine($"    Making API call for {contractTicker}...");
+            var ticks = await service.GetHistoricalOptionsDataAsync(request);
+            
+            return ticks;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"    Error downloading data for {contractTicker}: {ex.Message}");
+            return new List<MarketTick>();
+        }
+    }
+
+    // Helper methods for creating services in CLI context
+    private static IConfiguration CreateConfiguration(string? apiKey)
+    {
+        var builder = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("src/Optx.Web/appsettings.json", optional: true)
+            .AddEnvironmentVariables();
+        
+        var configuration = builder.Build();
+        
+        // Override API key if provided via command line
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            configuration["Polygon:ApiKey"] = apiKey;
+        }
+        
+        return configuration;
+    }
+
+    private static ILogger<T> CreateLogger<T>()
+    {
+        using var loggerFactory = LoggerFactory.Create(builder =>
+        {
+            builder.AddConsole().SetMinimumLevel(LogLevel.Information);
+        });
+        
+        return loggerFactory.CreateLogger<T>();
+    }
+
+    /// <summary>
+    /// Generate option events from real Polygon data
+    /// </summary>
+    private static List<Core.Events.MarketEvent> GenerateOptionEventsFromRealData(List<RealOptionsData> realOptionsData)
+    {
+        var events = new List<Core.Events.MarketEvent>();
+        
+        foreach (var optionData in realOptionsData)
+        {
+            // Convert real options ticks to market events
+            foreach (var tick in optionData.Ticks)
+            {
+                var marketEvent = new Core.Events.MarketEvent(tick);
+                events.Add(marketEvent);
+            }
+            
+            // If we have contract info, generate quote events with bid/ask spreads
+            if (optionData.Contract != null)
+            {
+                // Generate periodic quote updates based on the ticks
+                var quotes = GenerateQuotesFromRealTicks(optionData.Contract, optionData.Ticks);
+                foreach (var quote in quotes)
+                {
+                    var quoteEvent = new Core.Events.MarketEvent(quote);
+                    events.Add(quoteEvent);
+                }
+            }
+        }
+        
+        return events;
+    }
+
+    /// <summary>
+    /// Generate quote updates from real tick data
+    /// </summary>
+    private static List<QuoteUpdate> GenerateQuotesFromRealTicks(PolygonOptionsContract contract, List<MarketTick> ticks)
+    {
+        var quotes = new List<QuoteUpdate>();
+        
+        // Group ticks by time intervals and generate bid/ask quotes
+        var tickGroups = ticks.GroupBy(t => t.TimestampNs / 60_000_000_000UL); // Group by minute
+        
+        foreach (var group in tickGroups)
+        {
+            var avgPrice = group.Average(t => (double)t.Price);
+            var timestamp = group.First().TimestampNs;
+            var symbol = group.First().Symbol.ToString();
+            
+            // Simulate realistic bid/ask spread (typically 2-5% for options)
+            var spread = (decimal)(avgPrice * 0.03); // 3% spread
+            var bid = (decimal)avgPrice - spread / 2;
+            var ask = (decimal)avgPrice + spread / 2;
+            
+            var quote = new QuoteUpdate(
+                timestamp,
+                symbol.AsMemory(),
+                Math.Max(0.01m, bid), // Minimum bid of $0.01
+                100, // Default size
+                ask,
+                100  // Default size
+            );
+            
+            quotes.Add(quote);
+        }
+        
+        return quotes;
+    }
+
     private record BenchmarkResult
     {
         public double OperationsPerSecond { get; init; }
         public double EventsPerSecond { get; init; }
     }
+}
+
+/// <summary>
+/// Data model for real options data from Polygon API
+/// </summary>
+internal class RealOptionsData
+{
+    public PolygonOptionsContract? Contract { get; set; }
+    public List<MarketTick> Ticks { get; set; } = new();
+}
+
+/// <summary>
+/// Placeholder contract for CLI demo purposes
+/// </summary>
+internal class PlaceholderContract
+{
+    public string Ticker { get; set; } = string.Empty;
+    public string UnderlyingTicker { get; set; } = string.Empty;
+    public decimal StrikePrice { get; set; }
+    public DateTime ExpirationDate { get; set; }
+    public string ContractType { get; set; } = string.Empty;
 }
 
 // Simplified strategy implementations for CLI testing
